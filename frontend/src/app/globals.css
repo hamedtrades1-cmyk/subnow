@@ -1,0 +1,203 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-outfit: 'Outfit', system-ui, sans-serif;
+  --font-jetbrains: 'JetBrains Mono', monospace;
+}
+
+@layer base {
+  * {
+    @apply border-surface-700;
+  }
+  
+  body {
+    @apply bg-surface-900 text-surface-100 font-sans antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-surface-800;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-surface-600 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-surface-500;
+  }
+
+  /* Selection */
+  ::selection {
+    @apply bg-accent-cyan/30 text-white;
+  }
+}
+
+@layer components {
+  /* Glass panel effect */
+  .glass-panel {
+    @apply bg-surface-800/80 backdrop-blur-xl border border-surface-700/50 shadow-xl;
+  }
+
+  /* Glow effects */
+  .glow-cyan {
+    box-shadow: 0 0 20px rgba(34, 211, 238, 0.3), 0 0 40px rgba(34, 211, 238, 0.1);
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.3), 0 0 40px rgba(168, 85, 247, 0.1);
+  }
+
+  .glow-yellow {
+    box-shadow: 0 0 20px rgba(250, 204, 21, 0.3), 0 0 40px rgba(250, 204, 21, 0.1);
+  }
+
+  /* Button styles */
+  .btn-primary {
+    @apply px-4 py-2 bg-accent-cyan text-surface-900 font-semibold rounded-lg
+           hover:bg-accent-cyan/90 active:scale-95 transition-all duration-150
+           shadow-glow-cyan disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 bg-surface-700 text-surface-100 font-medium rounded-lg
+           hover:bg-surface-600 active:scale-95 transition-all duration-150
+           border border-surface-600 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply px-4 py-2 text-surface-300 font-medium rounded-lg
+           hover:bg-surface-700/50 hover:text-surface-100 active:scale-95 
+           transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-icon {
+    @apply p-2 rounded-lg text-surface-400 hover:text-surface-100 
+           hover:bg-surface-700/50 active:scale-95 transition-all duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Input styles */
+  .input {
+    @apply w-full px-3 py-2 bg-surface-800 border border-surface-600 rounded-lg
+           text-surface-100 placeholder:text-surface-500
+           focus:outline-none focus:border-accent-cyan focus:ring-1 focus:ring-accent-cyan/50
+           transition-all duration-150;
+  }
+
+  /* Panel styles */
+  .panel {
+    @apply bg-surface-800 border border-surface-700 rounded-xl overflow-hidden;
+  }
+
+  .panel-header {
+    @apply px-4 py-3 border-b border-surface-700 flex items-center justify-between;
+  }
+
+  .panel-title {
+    @apply text-sm font-semibold text-surface-300 uppercase tracking-wide;
+  }
+
+  /* Timeline scrubber */
+  .timeline-track {
+    @apply h-1 bg-surface-700 rounded-full overflow-hidden cursor-pointer;
+  }
+
+  .timeline-progress {
+    @apply h-full bg-gradient-to-r from-accent-cyan to-accent-purple rounded-full;
+  }
+
+  .timeline-handle {
+    @apply w-4 h-4 bg-white rounded-full shadow-lg cursor-grab active:cursor-grabbing
+           transform -translate-y-1/2 border-2 border-accent-cyan;
+  }
+}
+
+@layer utilities {
+  /* Text gradient */
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-accent-cyan to-accent-purple;
+  }
+
+  /* Background patterns */
+  .bg-dots {
+    background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+
+  .bg-grid {
+    background-image: 
+      linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+
+  /* Animations */
+  .animate-in {
+    animation: animate-in 0.3s ease-out;
+  }
+
+  @keyframes animate-in {
+    0% {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Video aspect ratios */
+  .aspect-video-vertical {
+    aspect-ratio: 9/16;
+  }
+
+  .aspect-video-square {
+    aspect-ratio: 1;
+  }
+}
+
+/* Video player controls fade */
+.video-controls {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.video-container:hover .video-controls {
+  opacity: 1;
+}
+
+/* Theme preview animation */
+@keyframes karaoke-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.animate-karaoke {
+  animation: karaoke-pulse 0.3s ease-in-out;
+}
+
+/* Loading states */
+.skeleton {
+  @apply bg-surface-700 animate-pulse rounded;
+}
+
+/* Focus visible for accessibility */
+.focus-visible:focus-visible {
+  @apply outline-none ring-2 ring-accent-cyan ring-offset-2 ring-offset-surface-900;
+}

@@ -3,11 +3,10 @@ version: '3.8'
 services:
   # PostgreSQL Database
   db:
-    image: postgres:15-alpine
-    container_name: captionmagic-db
+    image: postgres:16-alpine
     environment:
       POSTGRES_USER: captionmagic
-      POSTGRES_PASSWORD: captionmagic123
+      POSTGRES_PASSWORD: captionmagic
       POSTGRES_DB: captionmagic
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -22,59 +21,38 @@ services:
   # Redis (Celery broker + cache)
   redis:
     image: redis:7-alpine
-    container_name: captionmagic-redis
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  # MinIO (S3-compatible storage)
-  minio:
-    image: minio/minio:latest
-    container_name: captionmagic-minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
-    volumes:
-      - minio_data:/data
-    ports:
-      - "9000:9000"  # API
-      - "9001:9001"  # Console
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-
-  # Backend API
+  # FastAPI Backend
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: captionmagic-backend
-    environment:
-      DATABASE_URL: postgresql://captionmagic:captionmagic123@db:5432/captionmagic
-      REDIS_URL: redis://redis:6379/0
-      STORAGE_TYPE: s3
-      S3_ENDPOINT: http://minio:9000
-      S3_BUCKET: captionmagic
-      AWS_ACCESS_KEY_ID: minioadmin
-      AWS_SECRET_ACCESS_KEY: minioadmin123
-      WHISPER_MODEL: base
-      WHISPER_DEVICE: cpu
-      SECRET_KEY: dev-secret-key-change-in-production
-      CORS_ORIGINS: http://localhost:3000
-    volumes:
-      - ./backend:/app
-      - ./caption_engine:/app/caption_engine
-      - uploads_data:/app/uploads
-      - ./fonts:/app/fonts
     ports:
       - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://captionmagic:captionmagic@db:5432/captionmagic
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - STORAGE_TYPE=local
+      - STORAGE_PATH=/data/uploads
+      - WHISPER_MODEL=base
+      - WHISPER_DEVICE=cpu
+      - DEBUG=true
+      - CORS_ORIGINS=["http://localhost:3000"]
+    volumes:
+      - ./backend:/app
+      - upload_data:/data/uploads
+      - ./fonts:/app/fonts
     depends_on:
       db:
         condition: service_healthy
@@ -82,54 +60,85 @@ services:
         condition: service_healthy
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # Celery Worker
-  celery:
+  # Celery Worker (Transcription)
+  celery-transcription:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: captionmagic-celery
     environment:
-      DATABASE_URL: postgresql://captionmagic:captionmagic123@db:5432/captionmagic
-      REDIS_URL: redis://redis:6379/0
-      STORAGE_TYPE: s3
-      S3_ENDPOINT: http://minio:9000
-      S3_BUCKET: captionmagic
-      AWS_ACCESS_KEY_ID: minioadmin
-      AWS_SECRET_ACCESS_KEY: minioadmin123
-      WHISPER_MODEL: base
-      WHISPER_DEVICE: cpu
+      - DATABASE_URL=postgresql://captionmagic:captionmagic@db:5432/captionmagic
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - STORAGE_TYPE=local
+      - STORAGE_PATH=/data/uploads
+      - WHISPER_MODEL=base
+      - WHISPER_DEVICE=cpu
     volumes:
       - ./backend:/app
-      - ./caption_engine:/app/caption_engine
-      - uploads_data:/app/uploads
+      - upload_data:/data/uploads
       - ./fonts:/app/fonts
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: celery -A app.tasks.celery_app worker --loglevel=info
+    command: celery -A app.tasks.celery_app worker --loglevel=info -Q transcription --concurrency=1
 
-  # Frontend (Next.js)
+  # Celery Worker (Rendering)
+  celery-rendering:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://captionmagic:captionmagic@db:5432/captionmagic
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - STORAGE_TYPE=local
+      - STORAGE_PATH=/data/uploads
+      - FFMPEG_PATH=/usr/bin/ffmpeg
+      - FONTS_DIR=/app/fonts
+    volumes:
+      - ./backend:/app
+      - upload_data:/data/uploads
+      - ./fonts:/app/fonts
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.tasks.celery_app worker --loglevel=info -Q rendering --concurrency=2
+
+  # Celery Beat (scheduled tasks, optional)
+  # celery-beat:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   environment:
+  #     - CELERY_BROKER_URL=redis://redis:6379/0
+  #   depends_on:
+  #     - redis
+  #   command: celery -A app.tasks.celery_app beat --loglevel=info
+
+  # Next.js Frontend
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: captionmagic-frontend
+    ports:
+      - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-      NEXT_PUBLIC_WS_URL: ws://localhost:8000
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000
     volumes:
       - ./frontend:/app
       - /app/node_modules
-      - /app/.next
-    ports:
-      - "3000:3000"
     depends_on:
       - backend
     command: npm run dev
 
 volumes:
   postgres_data:
-  minio_data:
-  uploads_data:
+  redis_data:
+  upload_data:
