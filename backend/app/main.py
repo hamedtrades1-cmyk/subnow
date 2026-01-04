@@ -13,6 +13,7 @@ app = FastAPI(
     title=settings.app_name,
     description="Open-source video captioning with animated subtitles",
     version="0.1.0",
+    redirect_slashes=False,
 )
 
 app.add_middleware(

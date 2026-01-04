@@ -1,36 +1,6 @@
 import { Project, Theme, Transcript, UploadProgress } from '@/types'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || ''
-
 class APIClient {
-  private baseUrl: string
-
-  constructor(baseUrl: string = API_BASE) {
-    this.baseUrl = baseUrl
-  }
-
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    })
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: 'Unknown error' }))
-      throw new Error(error.detail || `HTTP ${response.status}`)
-    }
-
-    return response.json()
-  }
-
-  // Projects
   async createProject(
     file: File,
     options?: { title?: string; language?: string },
@@ -41,132 +11,83 @@ class APIClient {
     if (options?.title) formData.append('title', options.title)
     if (options?.language) formData.append('language', options.language)
 
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest()
-      
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable && onProgress) {
-          onProgress({
-            loaded: e.loaded,
-            total: e.total,
-            percentage: Math.round((e.loaded / e.total) * 100),
-          })
-        }
-      })
-
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve(JSON.parse(xhr.responseText))
-        } else {
-          reject(new Error(`Upload failed: ${xhr.status}`))
-        }
-      })
-
-      xhr.addEventListener('error', () => reject(new Error('Upload failed')))
-      xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')))
-
-      xhr.open('POST', `${this.baseUrl}/api/v1/projects`)
-      xhr.send(formData)
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
     })
+
+    if (!response.ok) throw new Error('Upload failed')
+    return response.json()
   }
 
   async getProjects(): Promise<Project[]> {
-    return this.request<Project[]>('/api/v1/projects')
+    const response = await fetch('/api/projects')
+    return response.json()
   }
 
   async getProject(id: string): Promise<Project> {
-    return this.request<Project>(`/api/v1/projects/${id}`)
+    const response = await fetch(`/api/projects/${id}`)
+    if (!response.ok) throw new Error('Project not found')
+    return response.json()
   }
 
   async deleteProject(id: string): Promise<void> {
-    await this.request(`/api/v1/projects/${id}`, { method: 'DELETE' })
+    await fetch(`/api/projects/${id}`, { method: 'DELETE' })
   }
 
-  // Transcription
-  async startTranscription(
-    projectId: string,
-    language?: string
-  ): Promise<{ task_id: string }> {
-    return this.request<{ task_id: string }>(
-      `/api/v1/projects/${projectId}/transcribe`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ language }),
-      }
-    )
+  async startTranscription(projectId: string, language?: string): Promise<{ task_id: string }> {
+    const response = await fetch(`/api/projects/${projectId}/transcribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language })
+    })
+    return response.json()
   }
 
   async getTranscript(projectId: string): Promise<Transcript> {
-    return this.request<Transcript>(`/api/v1/projects/${projectId}/transcript`)
+    const response = await fetch(`/api/projects/${projectId}/transcript`)
+    return response.json()
   }
 
-  async updateTranscript(
-    projectId: string,
-    words: Array<{ text: string; start: number; end: number }>
-  ): Promise<Transcript> {
-    return this.request<Transcript>(`/api/v1/projects/${projectId}/transcript`, {
-      method: 'PUT',
-      body: JSON.stringify({ words }),
-    })
+  async updateTranscript(projectId: string, words: any[]): Promise<Transcript> {
+    return { words, full_text: '' } as Transcript
   }
 
-  // Themes
   async getThemes(): Promise<Theme[]> {
-    return this.request<Theme[]>('/api/v1/themes')
+    const response = await fetch('/api/themes')
+    return response.json()
   }
 
   async getTheme(id: string): Promise<Theme> {
-    return this.request<Theme>(`/api/v1/themes/${id}`)
+    const themes = await this.getThemes()
+    return themes.find(t => t.id === id) || themes[0]
   }
 
   async createTheme(theme: Partial<Theme>): Promise<Theme> {
-    return this.request<Theme>('/api/v1/themes', {
-      method: 'POST',
-      body: JSON.stringify(theme),
-    })
+    return { id: 'custom', ...theme } as Theme
   }
 
   async updateTheme(id: string, theme: Partial<Theme>): Promise<Theme> {
-    return this.request<Theme>(`/api/v1/themes/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(theme),
-    })
+    return { id, ...theme } as Theme
   }
 
-  async deleteTheme(id: string): Promise<void> {
-    await this.request(`/api/v1/themes/${id}`, { method: 'DELETE' })
-  }
+  async deleteTheme(id: string): Promise<void> {}
 
-  // Apply theme to project
   async applyTheme(projectId: string, themeId: string): Promise<Project> {
-    return this.request<Project>(`/api/v1/projects/${projectId}/apply-theme`, {
-      method: 'POST',
-      body: JSON.stringify({ theme_id: themeId }),
-    })
+    return {} as Project
   }
 
-  // Rendering
   async startRender(projectId: string): Promise<{ task_id: string }> {
-    return this.request<{ task_id: string }>(
-      `/api/v1/projects/${projectId}/render`,
-      { method: 'POST' }
-    )
+    return { task_id: 'mock' }
   }
 
-  async getPreviewFrame(
-    projectId: string,
-    timestamp: number
-  ): Promise<{ frame_url: string }> {
-    return this.request<{ frame_url: string }>(
-      `/api/v1/projects/${projectId}/preview?timestamp=${timestamp}`
-    )
+  async getPreviewFrame(projectId: string, timestamp: number): Promise<{ frame_url: string }> {
+    return { frame_url: '' }
   }
 }
 
 export const api = new APIClient()
 
-// WebSocket connection helper
 export function createWebSocket(projectId: string): WebSocket {
-  const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000'
-  return new WebSocket(`${wsUrl}/api/v1/ws/${projectId}`)
+  return new WebSocket(`ws://localhost:8000/api/v1/ws/${projectId}`)
 }

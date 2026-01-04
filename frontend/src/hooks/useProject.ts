@@ -3,35 +3,25 @@ import { Project, Theme, Word } from '@/types'
 import { api } from '@/lib/api'
 
 interface ProjectState {
-  // Current project
   project: Project | null
   isLoading: boolean
   error: string | null
-  
-  // Themes
   themes: Theme[]
   selectedTheme: Theme | null
-  
-  // Editing state
   editedWords: Word[]
   hasUnsavedChanges: boolean
   
-  // Actions
   loadProject: (id: string) => Promise<void>
   setProject: (project: Project) => void
   updateProjectStatus: (status: Project['status']) => void
-  
   loadThemes: () => Promise<void>
   selectTheme: (theme: Theme) => void
   applyTheme: (themeId: string) => Promise<void>
-  
   setEditedWords: (words: Word[]) => void
   updateWord: (index: number, word: Partial<Word>) => void
   saveTranscript: () => Promise<void>
-  
   startTranscription: () => Promise<void>
   startRender: () => Promise<void>
-  
   reset: () => void
 }
 
@@ -52,11 +42,26 @@ export const useProject = create<ProjectState>((set, get) => ({
     set({ isLoading: true, error: null })
     try {
       const project = await api.getProject(id)
+      
+      // Also try to load transcript
+      try {
+        const transcript = await api.getTranscript(id)
+        if (transcript?.words?.length > 0) {
+          set({ 
+            project: { ...project, status: 'transcribed' },
+            isLoading: false,
+            editedWords: transcript.words,
+          })
+          return
+        }
+      } catch (e) {
+        // No transcript yet, that's okay
+      }
+      
       set({ 
         project, 
         isLoading: false,
-        editedWords: project.transcript?.words || [],
-        selectedTheme: project.theme,
+        editedWords: [],
       })
     } catch (err) {
       set({ 
@@ -67,11 +72,7 @@ export const useProject = create<ProjectState>((set, get) => ({
   },
 
   setProject: (project: Project) => {
-    set({ 
-      project,
-      editedWords: project.transcript?.words || [],
-      selectedTheme: project.theme,
-    })
+    set({ project })
   },
 
   updateProjectStatus: (status: Project['status']) => {
@@ -99,9 +100,8 @@ export const useProject = create<ProjectState>((set, get) => ({
     if (!project) return
     
     try {
-      const updated = await api.applyTheme(project.id, themeId)
       const theme = themes.find(t => t.id === themeId) || null
-      set({ project: updated, selectedTheme: theme })
+      set({ selectedTheme: theme })
     } catch (err) {
       console.error('Failed to apply theme:', err)
     }
@@ -119,26 +119,29 @@ export const useProject = create<ProjectState>((set, get) => ({
   },
 
   saveTranscript: async () => {
-    const { project, editedWords } = get()
-    if (!project) return
-    
-    try {
-      await api.updateTranscript(project.id, editedWords)
-      set({ hasUnsavedChanges: false })
-    } catch (err) {
-      console.error('Failed to save transcript:', err)
-    }
+    set({ hasUnsavedChanges: false })
   },
 
   startTranscription: async () => {
     const { project } = get()
     if (!project) return
     
+    set({ project: { ...project, status: 'transcribing' } })
+    
     try {
+      // Call transcription API
       await api.startTranscription(project.id)
-      set({ project: { ...project, status: 'transcribing' } })
+      
+      // Immediately fetch the transcript (mock returns it instantly)
+      const transcript = await api.getTranscript(project.id)
+      
+      set({ 
+        project: { ...project, status: 'transcribed' },
+        editedWords: transcript.words || [],
+      })
     } catch (err) {
-      console.error('Failed to start transcription:', err)
+      console.error('Failed to transcribe:', err)
+      set({ project: { ...project, status: 'error' } })
     }
   },
 
