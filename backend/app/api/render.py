@@ -13,7 +13,7 @@ from app.services.video import render_video_with_captions
 
 # Add caption_engine to path
 sys.path.insert(0, '/workspaces/subnow')
-from caption_engine import generate_ass, get_theme
+from caption_engine import generate_ass
 
 router = APIRouter()
 
@@ -32,7 +32,7 @@ def start_render(
     if not project.original_video_path:
         raise HTTPException(status_code=400, detail="No video uploaded")
     
-    # For now, use mock words - in production, load from DB
+    # Mock words for now
     words = [
         {"text": "Hello", "start": 0.0, "end": 0.4},
         {"text": "world", "start": 0.4, "end": 0.8},
