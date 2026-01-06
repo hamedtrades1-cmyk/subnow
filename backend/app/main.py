@@ -4,6 +4,7 @@ CaptionMagic - Main FastAPI Application
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
@@ -25,6 +26,9 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix=settings.api_v1_prefix)
+
+# Serve uploaded files
+app.mount("/uploads", StaticFiles(directory="./uploads"), name="uploads")
 
 
 @app.on_event("startup")

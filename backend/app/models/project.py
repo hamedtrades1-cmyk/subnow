@@ -3,6 +3,7 @@ Project database model - SQLite compatible.
 """
 
 import enum
+import json
 from datetime import datetime
 import uuid
 from sqlalchemy import Column, String, Float, Integer, DateTime, Enum, ForeignKey, Text
@@ -41,5 +42,21 @@ class Project(Base):
     theme_id = Column(String(36), nullable=True)
     error_message = Column(Text)
     
+    # Transcript data stored as JSON string
+    transcript_json = Column(Text, nullable=True)
+    transcript_full_text = Column(Text, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    @property
+    def transcript_words(self):
+        """Get transcript words as list of dicts."""
+        if self.transcript_json:
+            return json.loads(self.transcript_json)
+        return []
+    
+    @transcript_words.setter
+    def transcript_words(self, words):
+        """Set transcript words from list of dicts."""
+        self.transcript_json = json.dumps(words) if words else None

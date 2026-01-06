@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+// Fallback themes in case backend is not available
 const DEFAULT_THEMES = [
   {
     id: 'hormozi',
@@ -44,5 +47,15 @@ const DEFAULT_THEMES = [
 ]
 
 export async function GET() {
+  try {
+    const response = await fetch(`${API_URL}/api/v1/themes/`)
+    if (response.ok) {
+      const data = await response.json()
+      return NextResponse.json(data)
+    }
+  } catch (error) {
+    console.error('Failed to fetch themes from backend:', error)
+  }
+  // Return fallback themes if backend is not available
   return NextResponse.json(DEFAULT_THEMES)
 }

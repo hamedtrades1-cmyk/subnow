@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -9,12 +11,20 @@ export async function POST(
     const themeId = body.theme_id || 'hormozi'
     
     const response = await fetch(
-      `http://localhost:8000/api/v1/projects/${params.id}/render?theme_id=${themeId}`,
+      `${API_URL}/api/v1/projects/${params.id}/render?theme_id=${themeId}`,
       { method: 'POST' }
     )
+    
+    if (!response.ok) {
+      const error = await response.text()
+      console.error('Render error:', error)
+      return NextResponse.json({ error: 'Render failed' }, { status: response.status })
+    }
+    
     const data = await response.json()
     return NextResponse.json(data)
   } catch (error) {
+    console.error('Render failed:', error)
     return NextResponse.json({ error: 'Render failed' }, { status: 500 })
   }
 }

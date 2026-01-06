@@ -5,14 +5,16 @@ File upload API endpoints.
 import os
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.project import Project, ProjectStatus
-from app.services.storage import storage_service
+from app.models.project import Project
 from app.config import settings
 
 router = APIRouter()
+
+UPLOAD_DIR = "./uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 ALLOWED_VIDEO_TYPES = {
     "video/mp4",
@@ -27,7 +29,7 @@ ALLOWED_VIDEO_TYPES = {
 async def upload_video(
     file: UploadFile = File(...),
     title: str = None,
-    db: AsyncSession = Depends(get_db)
+    db: Session = Depends(get_db)
 ):
     """
     Upload a video file and create a new project.
@@ -62,63 +64,29 @@ async def upload_video(
     # Generate unique filename
     file_ext = os.path.splitext(file.filename)[1] or ".mp4"
     unique_filename = f"{uuid.uuid4()}{file_ext}"
+    file_path = os.path.join(UPLOAD_DIR, unique_filename)
     
-    # Save file
+    # Save file to disk
     file_content = b"".join(chunks)
-    file_path = await storage_service.save_file(
-        file_content,
-        unique_filename,
-        folder="uploads"
-    )
-    file_url = await storage_service.get_url(file_path)
+    with open(file_path, "wb") as f:
+        f.write(file_content)
     
     # Create project
     project = Project(
         title=title or file.filename,
-        status=ProjectStatus.UPLOADING,
+        status="ready",
         original_video_path=file_path,
-        original_video_url=file_url,
+        original_video_url=f"/uploads/{unique_filename}",
     )
     
     db.add(project)
-    await db.commit()
-    await db.refresh(project)
-    
-    # Update status to ready for transcription
-    project.status = ProjectStatus.READY
-    await db.commit()
+    db.commit()
+    db.refresh(project)
     
     return {
-        "project_id": str(project.id),
+        "id": project.id,
         "title": project.title,
-        "status": project.status.value,
-        "video_url": file_url,
+        "status": project.status,
+        "original_video_url": project.original_video_url,
         "message": "Upload complete. Ready for transcription."
-    }
-
-
-@router.post("/video/chunk")
-async def upload_video_chunk(
-    chunk: UploadFile = File(...),
-    upload_id: str = None,
-    chunk_number: int = 0,
-    total_chunks: int = 1,
-):
-    """
-    Upload video in chunks for large files.
-    
-    This is an alternative to the single upload endpoint for very large files.
-    """
-    # This is a simplified implementation
-    # In production, you'd want to track chunks in Redis and assemble them
-    
-    chunk_path = f"chunks/{upload_id}/{chunk_number}"
-    content = await chunk.read()
-    await storage_service.save_file(content, chunk_path)
-    
-    return {
-        "upload_id": upload_id,
-        "chunk_number": chunk_number,
-        "total_chunks": total_chunks,
-        "status": "chunk_received"
     }

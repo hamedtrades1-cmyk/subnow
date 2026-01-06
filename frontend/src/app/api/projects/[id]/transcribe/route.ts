@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -8,7 +10,7 @@ export async function POST(
   
   try {
     const response = await fetch(
-      `http://localhost:8000/api/v1/projects/${params.id}/transcribe`,
+      `${API_URL}/api/v1/projects/${params.id}/transcribe`,
       { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
