@@ -29,7 +29,10 @@ def start_transcription(project_id: str, language: str = None, db: Session = Dep
         # Run transcription
         result = transcribe_video(project.original_video_path, language)
         
-        # Update project
+        # Store transcript in project
+        project.transcript_words = result["words"]
+        project.transcript_full_text = result["full_text"]
+        project.language = result["language"]
         project.status = "transcribed"
         db.commit()
         
@@ -52,4 +55,8 @@ def get_transcript(project_id: str, db: Session = Depends(get_db)):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     
-    return {"words": [], "full_text": "", "language": "en"}
+    return {
+        "words": project.transcript_words,
+        "full_text": project.transcript_full_text or "",
+        "language": project.language or "en"
+    }
